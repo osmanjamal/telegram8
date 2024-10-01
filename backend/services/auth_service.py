@@ -1,38 +1,20 @@
-import jwt
-from datetime import datetime, timedelta
-from models import User
-from app import db, Config
+from flask import current_app
+from models import get_user_model
 
 class AuthService:
     @staticmethod
-    def authenticate_user(telegram_id):
-        return User.query.filter_by(telegram_id=telegram_id).first()
+    def authenticate_user(username, password):
+        User = get_user_model()
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            return user
+        return None
 
     @staticmethod
-    def create_token(user):
-        token = jwt.encode({
-            'user_id': user.id,
-            'exp': datetime.utcnow() + timedelta(hours=24)
-        }, Config.JWT_SECRET_KEY)
-        return token
-
-    @staticmethod
-    def register_user(data):
-        user = User(
-            telegram_id=data['telegram_id'],
-            username=data.get('username'),
-            name=data.get('name'),
-            phone=data.get('phone'),
-            address=data.get('address')
-        )
-        db.session.add(user)
-        db.session.commit()
+    def register_user(username, password, email):
+        User = get_user_model()
+        user = User(username=username, email=email)
+        user.set_password(password)
+        current_app.extensions['sqlalchemy'].db.session.add(user)
+        current_app.extensions['sqlalchemy'].db.session.commit()
         return user
-
-    @staticmethod
-    def verify_token(token):
-        try:
-            data = jwt.decode(token, Config.JWT_SECRET_KEY, algorithms=["HS256"])
-            return User.query.get(data['user_id'])
-        except:
-            return None
